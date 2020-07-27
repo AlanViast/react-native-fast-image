@@ -1,6 +1,7 @@
 package com.dylanvann.fastimage;
 
 import android.app.Activity;
+import android.os.AsyncTask;
 
 import com.bumptech.glide.Glide;
 import com.bumptech.glide.load.model.GlideUrl;
@@ -25,6 +26,19 @@ class FastImageViewModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
+    public void clean() {
+        final Activity activity = getCurrentActivity();
+        if (activity == null) return;
+
+        activity.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                Glide.get(activity.getApplicationContext()).clearMemory();
+            }
+        });
+    }
+
+    @ReactMethod
     public void preload(final ReadableArray sources) {
         final Activity activity = getCurrentActivity();
         if (activity == null) return;
@@ -45,7 +59,7 @@ class FastImageViewModule extends ReactContextBaseJavaModule {
                             //    - data:image/png;base64
                             .load(
                                     imageSource.isBase64Resource() ? imageSource.getSource() :
-                                    imageSource.isResource() ? imageSource.getUri() : imageSource.getGlideUrl()
+                                            imageSource.isResource() ? imageSource.getUri() : imageSource.getGlideUrl()
                             )
                             .apply(FastImageViewConverter.getOptions(activity, imageSource, source))
                             .preload();

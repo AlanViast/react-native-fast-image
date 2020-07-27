@@ -4,15 +4,12 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
-import android.media.Image;
-import android.net.Uri;
-import android.util.Log;
 import android.widget.ImageView;
 import android.widget.ImageView.ScaleType;
 
 import com.bumptech.glide.Priority;
+import com.bumptech.glide.load.DecodeFormat;
 import com.bumptech.glide.load.engine.DiskCacheStrategy;
-import com.bumptech.glide.load.model.GlideUrl;
 import com.bumptech.glide.load.model.Headers;
 import com.bumptech.glide.load.model.LazyHeaders;
 import com.bumptech.glide.request.RequestOptions;
@@ -21,15 +18,9 @@ import com.facebook.react.bridge.JSApplicationIllegalArgumentException;
 import com.facebook.react.bridge.NoSuchKeyException;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.ReadableMapKeySetIterator;
-import com.facebook.react.views.imagehelper.ImageSource;
 
-import java.io.File;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
-
-import javax.annotation.Nullable;
 
 import static com.bumptech.glide.request.RequestOptions.signatureOf;
 
@@ -49,6 +40,12 @@ class FastImageViewConverter {
                 put("normal", Priority.NORMAL);
                 put("high", Priority.HIGH);
             }};
+    private static final Map<String, DecodeFormat> FAST_IMAGE_DECODE_FORMAT_MAP =
+            new HashMap<String, DecodeFormat>() {{
+                put("PREFER_RGB_565", DecodeFormat.PREFER_RGB_565);
+                put("DEFAULT", DecodeFormat.PREFER_RGB_565);
+                put("PREFER_ARGB_8888", DecodeFormat.PREFER_ARGB_8888);
+            }};
 
     private static final Map<String, ImageView.ScaleType> FAST_IMAGE_RESIZE_MODE_MAP =
             new HashMap<String, ImageView.ScaleType>() {{
@@ -57,7 +54,7 @@ class FastImageViewConverter {
                 put("stretch", ScaleType.FIT_XY);
                 put("center", ScaleType.CENTER_INSIDE);
             }};
-    
+
     // Resolve the source uri to a file path that android understands.
     static FastImageSource getImageSource(Context context, ReadableMap source) {
         return new FastImageSource(context, source.getString("uri"), getHeaders(source));
@@ -87,6 +84,7 @@ class FastImageViewConverter {
     static RequestOptions getOptions(Context context, FastImageSource imageSource, ReadableMap source) {
         // Get priority.
         final Priority priority = FastImageViewConverter.getPriority(source);
+        final DecodeFormat decodeFormat = FastImageViewConverter.getDecodeFormat(source);
         // Get cache control method.
         final FastImageCacheControl cacheControl = FastImageViewConverter.getCacheControl(source);
         DiskCacheStrategy diskCacheStrategy = DiskCacheStrategy.AUTOMATIC;
@@ -106,13 +104,16 @@ class FastImageViewConverter {
                 break;
         }
 
+        System.out.println(String.format("decodeFormat, %s, %s", source, decodeFormat.name()));
+
         RequestOptions options = new RequestOptions()
-            .diskCacheStrategy(diskCacheStrategy)
-            .onlyRetrieveFromCache(onlyFromCache)
-            .skipMemoryCache(skipMemoryCache)
-            .priority(priority)
-            .placeholder(TRANSPARENT_DRAWABLE);
-        
+                .diskCacheStrategy(diskCacheStrategy)
+                .onlyRetrieveFromCache(onlyFromCache)
+                .skipMemoryCache(skipMemoryCache)
+                .priority(priority)
+                .format(decodeFormat)
+                .placeholder(TRANSPARENT_DRAWABLE);
+
         if (imageSource.isResource()) {
             // Every local resource (drawable) in Android has its own unique numeric id, which are
             // generated at build time. Although these ids are unique, they are not guaranteed unique
@@ -123,7 +124,7 @@ class FastImageViewConverter {
             options = options.apply(signatureOf(ApplicationVersionSignature.obtain(context)));
         }
 
-        return options;                
+        return options;
     }
 
     private static FastImageCacheControl getCacheControl(ReadableMap source) {
@@ -132,6 +133,10 @@ class FastImageViewConverter {
 
     private static Priority getPriority(ReadableMap source) {
         return getValueFromSource("priority", "normal", FAST_IMAGE_PRIORITY_MAP, source);
+    }
+
+    private static DecodeFormat getDecodeFormat(ReadableMap source) {
+        return getValueFromSource("decodeFormat", "DEFAULT", FAST_IMAGE_DECODE_FORMAT_MAP, source);
     }
 
     static ScaleType getScaleType(String propValue) {
